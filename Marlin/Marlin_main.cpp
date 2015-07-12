@@ -61,6 +61,12 @@
 
 #define VERSION_STRING  "1.0.0"
 
+  
+#define FDM_ETR_RDY  32
+#define FDM_HB_RDY   47
+#define FDM_READY    45
+#define FDM_START    43
+
 // look here for descriptions of G-codes: http://linuxcnc.org/handbook/gcode/g-code.html
 // http://objects.reprap.org/wiki/Mendel_User_Manual:_RepRapGCodes
 
@@ -421,6 +427,9 @@ void suicide()
 
 void setup()
 {
+  pinMode(FDM_READY, OUTPUT);
+  digitalWrite(FDM_READY, LOW);
+
   setup_killpin();
   setup_powerhold();
   MYSERIAL.begin(BAUDRATE);
@@ -471,13 +480,81 @@ void setup()
   #if defined(CONTROLLERFAN_PIN) && CONTROLLERFAN_PIN > -1
     SET_OUTPUT(CONTROLLERFAN_PIN); //Set pin used for driver cooling fan
   #endif
+  
+  // configure START signal.
+  pinMode(FDM_START, INPUT);
+
+  // set READY.
+  digitalWrite(FDM_READY, HIGH);
+
+  // set HB_RDY, ETR_RDY to default state.
+  pinMode(FDM_HB_RDY, OUTPUT);
+  digitalWrite(FDM_HB_RDY, LOW);
+
+  pinMode(FDM_ETR_RDY, OUTPUT);
+  digitalWrite(FDM_ETR_RDY, LOW);
 }
 
+
+bool FDM_HasStarted = false;
+bool FDM_HB_Ready = false;
+bool FDM_ETR_Ready = false;
 
 void loop()
 {
   if(buflen < (BUFSIZE-1))
     get_command();
+
+  // check FDM_START.
+  if (!FDM_HasStarted && digitalRead(FDM_START) == HIGH)
+  {
+    // fake M140 to heat print bed.
+    strcpy(&(cmdbuffer[bufindw][0]), "M140 S55");
+    bufindw = (bufindw + 1)%BUFSIZE;
+    buflen += 1;
+    
+    // fake M104 to heat extruder.
+    strcpy(&(cmdbuffer[bufindw][0]), "M104 S190");
+    bufindw = (bufindw + 1)%BUFSIZE;
+    buflen += 1;
+    
+    FDM_HasStarted = true;
+  }
+  else if (FDM_HasStarted)
+  {
+    if (digitalRead(FDM_START) == LOW)
+    {
+      // fake M140 to heat print bed.
+      strcpy(&(cmdbuffer[bufindw][0]), "M140 S0");
+      bufindw = (bufindw + 1)%BUFSIZE;
+      buflen += 1;
+    
+      // fake M104 to heat extruder.
+      strcpy(&(cmdbuffer[bufindw][0]), "M104 S0");
+      bufindw = (bufindw + 1)%BUFSIZE;
+      buflen += 1;
+    
+      FDM_HasStarted = false;
+     
+      digitalWrite(FDM_HB_RDY, LOW);
+      FDM_HB_Ready = false;
+      digitalWrite(FDM_ETR_RDY, LOW);
+      FDM_ETR_Ready = false;
+    }
+    else 
+    {
+      if (!FDM_HB_Ready && degBed() > 55)
+      {
+        digitalWrite(FDM_HB_RDY, HIGH);
+        FDM_HB_Ready = true;
+      }
+       if (!FDM_ETR_Ready && degHotend0() > 190)
+      {
+        digitalWrite(FDM_ETR_RDY, HIGH);
+        FDM_ETR_Ready = true;
+      }
+    }
+  }
 
   if(buflen)
   {
