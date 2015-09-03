@@ -66,6 +66,8 @@
 #define FDM_HB_RDY   47
 #define FDM_READY    45
 #define FDM_START    43
+#define FDM_ConRDY2  41
+#define FDM_ConRDY1  39
 
 // look here for descriptions of G-codes: http://linuxcnc.org/handbook/gcode/g-code.html
 // http://objects.reprap.org/wiki/Mendel_User_Manual:_RepRapGCodes
@@ -483,6 +485,8 @@ void setup()
   
   // configure START signal.
   pinMode(FDM_START, INPUT);
+  pinMode(FDM_ConRDY1, INPUT);
+  pinMode(FDM_ConRDY2, INPUT);
 
   // set READY.
   digitalWrite(FDM_READY, HIGH);
@@ -499,6 +503,8 @@ void setup()
 bool FDM_HasStarted = false;
 bool FDM_HB_Ready = false;
 bool FDM_ETR_Ready = false;
+char* Temp[] ={"M104 S180","M104 S185","M104 S190","M104 S195"};
+char* strTemp;
 
 void loop()
 {
@@ -508,16 +514,28 @@ void loop()
   // check FDM_START.
   if (!FDM_HasStarted && digitalRead(FDM_START) == HIGH)
   {
+     if(digitalRead(FDM_ConRDY2)==LOW && digitalRead(FDM_ConRDY1)==LOW){
+      strTemp = Temp[0];
+     }
+     else if (digitalRead(FDM_ConRDY2)==LOW && digitalRead(FDM_ConRDY1)==HIGH){
+      strTemp = Temp[1];
+     }
+     else if (digitalRead(FDM_ConRDY2)==HIGH && digitalRead(FDM_ConRDY1)==LOW){
+      strTemp = Temp[2];
+     }
+     else if (digitalRead(FDM_ConRDY2)==HIGH && digitalRead(FDM_ConRDY1)==HIGH){
+      strTemp = Temp[3];
+     }
+              
     // fake M140 to heat print bed.
     strcpy(&(cmdbuffer[bufindw][0]), "M140 S55");
     bufindw = (bufindw + 1)%BUFSIZE;
     buflen += 1;
     
     // fake M104 to heat extruder.
-    strcpy(&(cmdbuffer[bufindw][0]), "M104 S190");
+    strcpy(&(cmdbuffer[bufindw][0]), strTemp);
     bufindw = (bufindw + 1)%BUFSIZE;
-    buflen += 1;
-    
+    buflen += 1;        
     FDM_HasStarted = true;
   }
   else if (FDM_HasStarted)
