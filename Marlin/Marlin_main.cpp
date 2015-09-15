@@ -506,6 +506,8 @@ bool FDM_ETR_Ready = false;
 char* Temp[] ={"M104 S180","M104 S185","M104 S190","M104 S195"};
 char* strTemp;
 
+int tempThreshold = 0;
+
 void loop()
 {
   if(buflen < (BUFSIZE-1))
@@ -516,15 +518,19 @@ void loop()
   {
      if(digitalRead(FDM_ConRDY2)==LOW && digitalRead(FDM_ConRDY1)==LOW){
       strTemp = Temp[0];
+      tempThreshold = 180;
      }
      else if (digitalRead(FDM_ConRDY2)==LOW && digitalRead(FDM_ConRDY1)==HIGH){
       strTemp = Temp[1];
+      tempThreshold = 185;
      }
      else if (digitalRead(FDM_ConRDY2)==HIGH && digitalRead(FDM_ConRDY1)==LOW){
       strTemp = Temp[2];
+      tempThreshold = 190;
      }
      else if (digitalRead(FDM_ConRDY2)==HIGH && digitalRead(FDM_ConRDY1)==HIGH){
       strTemp = Temp[3];
+      tempThreshold = 195;
      }
               
     // fake M140 to heat print bed.
@@ -566,7 +572,7 @@ void loop()
         digitalWrite(FDM_HB_RDY, HIGH);
         FDM_HB_Ready = true;
       }
-       if (!FDM_ETR_Ready && degHotend0() > 190)
+       if (!FDM_ETR_Ready && degHotend0() > tempThreshold)
       {
         digitalWrite(FDM_ETR_RDY, HIGH);
         FDM_ETR_Ready = true;
